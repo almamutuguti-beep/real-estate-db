@@ -5,6 +5,7 @@ CREATE TABLE property_owner (
     company_name VARCHAR(100),
     phone VARCHAR(15),
     email VARCHAR(100) UNIQUE,
+    db_user VARCHAR(100) UNIQUE,
     create_date DATETIME DEFAULT 
     CURRENT_TIMESTAMP,
     PRIMARY KEY pk_propert_owner (property_owner_id),
