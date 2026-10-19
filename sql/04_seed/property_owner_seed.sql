@@ -1,3 +1,5 @@
+USE real_estate_db;
+
 -- insert property owners(assumes user_account exists)
 INSERT INTO property_owner (user_id, company_name, phone, email)
 VALUES
