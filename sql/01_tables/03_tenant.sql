@@ -2,18 +2,17 @@ USE real_estate_db;
 
 CREATE TABLE tenant (
     tenant_id       INT UNSIGNED AUTO_INCREMENT,
-    user_account_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
     full_name       VARCHAR(100) NOT NULL,
     national_id     VARCHAR(20)  NOT NULL,
     phone           VARCHAR(15)  NOT NULL,
     email           VARCHAR(100) NOT NULL,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_tenant PRIMARY KEY (tenant_id),
-    CONSTRAINT uq_tenant_user_account UNIQUE (user_account_id),
+    CONSTRAINT uq_tenant_user UNIQUE (user_id),
     CONSTRAINT uq_tenant_national_id UNIQUE (national_id),
     CONSTRAINT uq_tenant_email UNIQUE (email),
-    CONSTRAINT fk_tenant_user_account
-        FOREIGN KEY (user_account_id) REFERENCES user_account (user_account_id)
+    CONSTRAINT fk_tenant_user FOREIGN KEY (user_id) REFERENCES user_account (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE rental_application (
