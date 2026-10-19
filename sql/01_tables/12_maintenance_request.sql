@@ -13,6 +13,6 @@ CREATE TABLE maintenance_request(
     CONSTRAINT fk_maintenance_request_property FOREIGN KEY (property_id) REFERENCES property (property_id),
     CONSTRAINT fk_maintenance_request_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (tenant_id),
     CONSTRAINT fk_maintenance_request_worker FOREIGN KEY (assigned_to) REFERENCES maintenance_worker (worker_id),
-    CONSTRAINT chk_maintenance_request_status CHECK (status IN('Open','Assigned','In Progress','Completed'))
+    CONSTRAINT chk_maintenance_request_status CHECK (status IN('Open','Assigned','In Progress','Complete'))
 
 );
