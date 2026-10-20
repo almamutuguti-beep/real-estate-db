@@ -1,0 +1,21 @@
+require('dotenv').config();
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const db = require('./db');
+
+const app = express();
+app.use(express.json());
+app.use(cookieParser());
+
+app.get('/api/health', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT 1 AS ok');
+        res.json({ok : true, db: rows[0].ok });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database unreachable'});
+    }
+});
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => console.log(`API running on port ${PORT}`))
