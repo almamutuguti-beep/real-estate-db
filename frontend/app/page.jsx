@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '../lib/api'
 import { Bell, Building2, ChevronDown, CircleDollarSign, ClipboardList, Home, LogOut, Menu, Plus, Search, Settings, ShieldCheck, Users, X } from 'lucide-react'
 
 const properties = [
@@ -24,7 +25,7 @@ function PropertyVisual({ accent }) {
   return <div className={`property-visual ${accent}`}><Building2 size={28} strokeWidth={1.5} /><span>Property preview</span></div>
 }
 
-export default function Page() {
+function Dashboard({ onLogout }) {
   const [active, setActive] = useState('Overview')
   const [query, setQuery] = useState('')
   const [notice, setNotice] = useState('')
@@ -50,7 +51,7 @@ export default function Page() {
           <button className="nav-item" onClick={() => runDemo('Reports')}><ClipboardList size={18} /><span>Reports</span></button>
           <button className="nav-item" onClick={() => runDemo('Settings')}><Settings size={18} /><span>Settings</span></button>
         </nav>
-        <div className="sidebar-bottom"><div className="help-card"><ShieldCheck size={19} /><div><strong>API demo mode</strong><small>Safe placeholder data</small></div><span className="live-dot" /></div><button className="nav-item logout" onClick={() => runDemo('Logout')}><LogOut size={18} /><span>Sign out</span></button></div>
+        <div className="sidebar-bottom"><div className="help-card"><ShieldCheck size={19} /><div><strong>API demo mode</strong><small>Safe placeholder data</small></div><span className="live-dot" /></div><button className="nav-item logout" onClick={onLogout}><LogOut size={18} /><span>Sign out</span></button></div>
       </aside>
 
       <section className="main-panel">
@@ -67,4 +68,82 @@ export default function Page() {
       {modalOpen && <div className="modal-backdrop" onClick={() => setModalOpen(false)}><div className="modal-card" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModalOpen(false)} aria-label="Close dialog"><X /></button><div className="modal-icon"><Building2 /></div><p className="eyebrow">Property setup</p><h2>Add a new property</h2><p>This API demo will connect to <code>POST /api/properties</code> when your backend is ready.</p><label>Property name<input placeholder="e.g. The Willow Estate" /></label><label>Monthly rent<input placeholder="R 0.00" /></label><button className="primary-button full" onClick={() => { setModalOpen(false); runDemo('Create property') }}>Create property <span>→</span></button></div></div>}
     </main>
   )
+}
+
+function LoginForm({ onLoggedIn }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setBusy(true)
+    try {
+      const result = await apiFetch('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      })
+      if (result.user.role !== 'Owner') {
+        await apiFetch('/api/auth/logout', { method: 'POST' })
+        setError('This dashboard is for property owners only.')
+      } else {
+        onLoggedIn(result.user)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const fieldStyle = { display: 'block', width: '100%', marginTop: 6, padding: '10px 12px', border: '1px solid #cbd5d9', borderRadius: 8, fontSize: 15 }
+
+  return (
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 380, display: 'grid', gap: 16 }}>
+        <h1 style={{ margin: 0 }}>Sign in to Velora</h1>
+        <label>
+          Username
+          <input style={fieldStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
+        </label>
+        <label>
+          Password
+          <input style={fieldStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        </label>
+        {error && <p role="alert" style={{ color: '#b42318', margin: 0 }}>{error}</p>}
+        <button className="primary-button full" type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </main>
+  )
+}
+
+export default function Page() {
+  const [user, setUser] = useState(null)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    apiFetch('/api/auth/session')
+      .then((result) => setUser(result.user.role === 'Owner' ? result.user : null))
+      .catch(() => setUser(null))
+      .finally(() => setChecking(false))
+  }, [])
+
+  async function handleLogout() {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // the cookie is cleared by the server; ignore network errors here
+    }
+    setUser(null)
+  }
+
+  if (checking) {
+    return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>Loading…</main>
+  }
+  if (!user) return <LoginForm onLoggedIn={setUser} />
+  return <Dashboard onLogout={handleLogout} />
 }
