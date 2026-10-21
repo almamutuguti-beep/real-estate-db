@@ -6,6 +6,7 @@ const db = require('./db');
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
+app.use('/api/auth', require('./routes/auth'));
 
 app.get('/api/health', async (req, res) => {
     try {
@@ -19,3 +20,4 @@ app.get('/api/health', async (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`API running on port ${PORT}`))
+
