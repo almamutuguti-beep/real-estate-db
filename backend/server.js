@@ -15,8 +15,6 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/applications', require('./routes/applications'));
 
 
-
-
 app.get('/api/health', async (req, res) => {
     try {
         const [rows] = await db.query('SELECT 1 AS ok');
