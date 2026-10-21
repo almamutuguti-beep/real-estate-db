@@ -2,7 +2,34 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const { requireAuth } = require('../middleware/auth');
 
+router.post('/logout', (req, res) => {
+    res.clearCookie('token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+    });
+    res.json({ ok: true});
+});
+
+router.get('/session', requireAuth, async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT user_id, username, role, is_active FROM user_account WHERE user_id = ?',
+            [req.user.userId]
+        );
+
+        const user = rows[0];
+        if (!user || !user.is_active) {
+            return res.status(401).json({ error: 'Not authenticated'});
+        }
+        res.json({ user: { userId: user.user_id, username: user.username, role: user.role} });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error'});
+    }
+});
 const router = express.Router();
 
 router.post('/login', async (req, res) => {
