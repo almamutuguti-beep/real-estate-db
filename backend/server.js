@@ -11,6 +11,7 @@ app.use('/api/properties', require('./routes/properties'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/applications', require('./routes/applications'));
+app.use('/api/tenants', require('./routes/tenants'));
 
 app.get('/api/health', async (req, res) => {
     try {
