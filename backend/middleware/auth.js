@@ -36,4 +36,4 @@ async function requireOwner(req, res, next) {
     }
 }
 
-modue.exports = { requireAuth, requireOwner };
+module.exports = { requireAuth, requireOwner };
