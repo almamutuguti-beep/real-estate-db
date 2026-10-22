@@ -1,4 +1,4 @@
--- sql/03_views_procedures/agent_views.sql
+
 -- A view cannot take a parameter, so each view exposes an agent_id column
 -- (the agent assigned to the property). Always query with WHERE agent_id = <id>.
 -- Needs the Tenant tables (tenant, rental_application, property_viewing) to exist.

@@ -1,5 +1,4 @@
--- sql/02_triggers/agent_triggers.sql
--- Rule: an agent may only add or update listings for properties assigned to them.
+
 USE real_estate_db;
 
 DROP TRIGGER IF EXISTS trg_property_listing_bi_assigned_agent;

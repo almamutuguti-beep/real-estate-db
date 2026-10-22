@@ -1,8 +1,5 @@
--- sql/05_tests/agent_tests.sql
--- Run ONE statement at a time (put the cursor on it, press Ctrl+Enter).
--- Running the whole file stops at the first expected error.
--- Passing tests change data, so rebuild the database before repeating the run.
--- Ids assume the seed data: properties 1-2 -> agent 1, 3-4 -> agent 2, 5 -> agent 3, 6 unassigned.
+
+-
 USE real_estate_db;
 
 -- ===== Rule: agent can only list properties assigned to them =====
