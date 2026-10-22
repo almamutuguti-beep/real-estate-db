@@ -13,6 +13,8 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/tenants', require('./routes/tenants'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/applications', require('./routes/applications'));
+app.use('/api/auth', require('./routes/register'));
+app.use('/api/public', require('./routes/public'));
 
 app.get('/api/health', async (req, res) => {
     try {
