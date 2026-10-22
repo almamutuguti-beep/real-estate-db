@@ -1,4 +1,4 @@
--- sql/03_views_procedures/agent_procedures.sql
+
 -- Each procedure takes the agent id and checks the property is assigned to that agent.
 USE real_estate_db;
 
