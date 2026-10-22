@@ -15,6 +15,7 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/auth', require('./routes/register'));
 app.use('/api/public', require('./routes/public'));
+app.use('/api/settings', require('./routes/settings'));
 
 app.get('/api/health', async (req, res) => {
     try {
