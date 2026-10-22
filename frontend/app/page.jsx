@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api'
+import AuthScreen from '../components/auth-screen'
 import { Bell, Building2, ChevronDown, CircleDollarSign, ClipboardList, Home, LogOut, Menu, Plus, Search, Settings, ShieldCheck, Users, X } from 'lucide-react'
 
 const CURRENCY = 'R'
@@ -356,53 +357,16 @@ function Dashboard({ user, onLogout }) {
   )
 }
 
-function LoginForm({ onLoggedIn }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
 
-  async function handleSubmit(event) {
-    event.preventDefault()
-    setError('')
-    setBusy(true)
-    try {
-      const result = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      })
-      if (result.user.role !== 'Owner') {
-        await apiFetch('/api/auth/logout', { method: 'POST' })
-        setError('This dashboard is for property owners only.')
-      } else {
-        onLoggedIn(result.user)
-      }
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const fieldStyle = { display: 'block', width: '100%', marginTop: 6, padding: '10px 12px', border: '1px solid #cbd5d9', borderRadius: 8, fontSize: 15 }
-
+function NonOwnerNotice({ user, onLogout }) {
+  const role = user.role.toLowerCase()
   return (
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
-      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 380, display: 'grid', gap: 16 }}>
-        <h1 style={{ margin: 0 }}>Sign in to Velora</h1>
-        <label>
-          Username
-          <input style={fieldStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
-        </label>
-        <label>
-          Password
-          <input style={fieldStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
-        </label>
-        {error && <p role="alert" style={{ color: '#b42318', margin: 0 }}>{error}</p>}
-        <button className="primary-button full" type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+      <div style={{ maxWidth: 420, display: 'grid', gap: 12 }}>
+        <h1 style={{ margin: 0 }}>Welcome, {user.username}</h1>
+        <p style={{ margin: 0 }}>Your {role} account is ready. The {role} dashboard is coming soon.</p>
+        <button className="primary-button" onClick={onLogout}>Sign out</button>
+      </div>
     </main>
   )
 }
@@ -413,7 +377,7 @@ export default function Page() {
 
   useEffect(() => {
     apiFetch('/api/auth/session')
-      .then((result) => setUser(result.user.role === 'Owner' ? result.user : null))
+      .then((result) => setUser(result.user))
       .catch(() => setUser(null))
       .finally(() => setChecking(false))
   }, [])
@@ -430,7 +394,7 @@ export default function Page() {
   if (checking) {
     return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>Loading…</main>
   }
-  if (!user) return <LoginForm onLoggedIn={setUser} />
+  if (!user) return <AuthScreen onAuthed={setUser} />
+  if (user.role !== 'Owner') return <NonOwnerNotice user={user} onLogout={handleLogout} />
   return <Dashboard user={user} onLogout={handleLogout} />
 }
-
