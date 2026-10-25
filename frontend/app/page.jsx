@@ -9,10 +9,10 @@ import TenantDashboard from '../components/tenant-dashboard'
 import SettingsPanel from '../components/settings-panel'
 import { ConfirmDialog, Dialog, EmptyState, Skeleton, Toasts, useToasts } from '../components/ui'
 import { LeaseForm, PropertyForm } from '../components/forms'
-import { Bell, Building2, ChevronDown, CircleDollarSign, ClipboardList, FileText, Home, LogOut, Menu, Plus, Search, Settings, ShieldCheck, Users, X } from 'lucide-react'
+import { Building2, CircleDollarSign, ClipboardList, Home, Plus, Users } from 'lucide-react'
+import '../components/public-home.css'
 
 const ACCENTS = ['teal', 'orange', 'blue']
-const MAIN_NAV = [['Overview', Home], ['Properties', Building2], ['Applications', ClipboardList], ['Tenants', Users], ['Leases', FileText], ['Payments', CircleDollarSign]]
 const BLANK_PROPERTY = { address: '', propertyType: '', bedrooms: '', bathrooms: '', monthlyRent: '', status: 'Available' }
 
 function isoDate(date) {
@@ -47,7 +47,7 @@ function PropertyGrid({ properties, busy, onEdit, onRemove, onAdd, searching }) 
       : <EmptyState title="No properties yet" text="Add your first property and it will appear here and on the public listings page." action={<button className="ui-btn" onClick={onAdd}>Add property</button>} />
   }
   return (
-    <div className="property-grid">
+    <div className="home-grid owner-block">
       {properties.map((property, index) => {
         const details = [property.bedrooms != null && `${property.bedrooms} bed`, property.bathrooms != null && `${property.bathrooms} bath`].filter(Boolean).join(', ')
         return (
@@ -180,7 +180,6 @@ function ReportPanel({ report }) {
 function Dashboard({ user, onLogout }) {
   const [active, setActive] = useState('Overview')
   const [query, setQuery] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [data, setData] = useState({ summary: null, properties: [], applications: [], tenants: [], payments: [], leases: [], report: null })
@@ -262,13 +261,6 @@ function Dashboard({ user, onLogout }) {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  const initials = user.username.slice(0, 2).toUpperCase()
-
-  function go(label) {
-    setActive(label)
-    setMenuOpen(false)
-  }
 
   async function act(fn) {
     if (busy) return
@@ -448,13 +440,11 @@ function Dashboard({ user, onLogout }) {
 
   const propertySection = (
     <>
-      <div className="section-row">
+      <div className="section-row owner-section-row">
         <div><h2>Property portfolio</h2><p>Keep track of your listings and occupancy.</p></div>
-        <div className="section-actions">
-          <div className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search properties" aria-label="Search properties" /></div>
-          {active === 'Overview' && <button className="text-button" onClick={() => setActive('Properties')}>View all <span>→</span></button>}
-        </div>
+        {active === 'Overview' && <button className="text-button" onClick={() => setActive('Properties')}>View all <span>→</span></button>}
       </div>
+      {active === 'Properties' && <input className="home-tab-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search properties" aria-label="Search properties" />}
       <PropertyGrid
         properties={active === 'Overview' ? filteredProperties.slice(0, 3) : filteredProperties}
         busy={busy}
@@ -499,25 +489,36 @@ function Dashboard({ user, onLogout }) {
     </section>
   )
 
-  return (
-    <main className="app-shell">
-      <aside className={`sidebar ${menuOpen ? 'mobile-open' : ''}`}>
-        <div className="brand"><div className="brand-mark"><Home size={17} /></div><span>Velora</span><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X /></button></div>
-        <div className="workspace-switcher"><div className="avatar avatar-brand">{initials}</div><div><strong>{user.username}</strong><small>Property owner</small></div><ChevronDown size={16} /></div>
-        <nav className="nav-list" aria-label="Main navigation">
-          <p className="nav-label">Workspace</p>
-          {MAIN_NAV.map(([label, Icon]) => <button key={label} className={`nav-item ${active === label ? 'active' : ''}`} onClick={() => go(label)}><Icon size={18} /><span>{label}</span>{label === 'Applications' && pendingCount > 0 && <b>{pendingCount}</b>}</button>)}
-          <p className="nav-label second">Manage</p>
-          <button className={`nav-item ${active === 'Reports' ? 'active' : ''}`} onClick={() => go('Reports')}><ClipboardList size={18} /><span>Reports</span></button>
-          <button className={`nav-item ${active === 'Settings' ? 'active' : ''}`} onClick={() => go('Settings')}><Settings size={18} /><span>Settings</span></button>
-        </nav>
-        <div className="sidebar-bottom"><div className="help-card"><ShieldCheck size={19} /><div><strong>Live data</strong><small>Refreshes every 15 seconds</small></div><span className="live-dot" /></div><button className="nav-item logout" onClick={onLogout}><LogOut size={18} /><span>Sign out</span></button></div>
-      </aside>
+  const tabs = [
+    ['Overview', 'Overview'],
+    ['Properties', `My properties (${data.properties.length})`],
+    ['Applications', pendingCount ? `Applications (${pendingCount} pending)` : 'Applications'],
+    ['Tenants', 'Tenants'],
+    ['Leases', 'Leases'],
+    ['Payments', 'Payments'],
+    ['Reports', 'Reports'],
+    ['Settings', 'Settings'],
+  ]
 
-      <section className="main-panel">
-        <header className="topbar"><button className="menu-button" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu /></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><button className="icon-button" onClick={() => notify(pendingCount ? `${pendingCount} ${pendingCount === 1 ? 'application is' : 'applications are'} waiting for your review` : 'You are all caught up')} aria-label="Notifications"><Bell size={19} />{pendingCount > 0 && <i />}</button><div className="top-avatar">{initials}</div></div></header>
-        <div className="content">
-          <div className="page-heading"><div><p className="eyebrow">{today}</p><h1>{greeting}, {user.username}<span className="heading-accent">.</span></h1><p className="heading-copy">Here&apos;s what&apos;s happening with your properties today.</p></div><button className="primary-button" onClick={openCreateProperty}><Plus size={18} /> Add property</button></div>
+  return (
+    <div className="home-shell">
+      <header className="home-header home-header-static">
+        <div className="home-brand"><span className="home-mark"><Home size={16} /></span> Velora</div>
+        <div className="home-actions">
+          <span className="home-user">Signed in as {user.username} (owner)</span>
+          <button type="button" className="home-btn" onClick={onLogout}>Sign out</button>
+        </div>
+      </header>
+
+      <nav className="home-tabs" role="tablist" aria-label="Owner sections">
+        {tabs.map(([key, label]) => <button key={key} type="button" role="tab" className="home-tab" aria-selected={active === key} onClick={() => setActive(key)}>{label}</button>)}
+      </nav>
+
+      <main className="home-section">
+          <div className="home-section-head">
+            <div><h2>{greeting}, {user.username}</h2><p>Here&apos;s what&apos;s happening with your properties today.</p></div>
+            <button type="button" className="home-btn home-btn-primary home-btn-icon" onClick={openCreateProperty}><Plus size={16} /> Add property</button>
+          </div>
 
           {loadError && (
             <div className="ui-banner error ui-banner-row" role="alert">
@@ -567,8 +568,7 @@ function Dashboard({ user, onLogout }) {
               {active === 'Settings' && <SettingsPanel onUnauthorized={onLogout} />}
             </>
           )}
-        </div>
-      </section>
+      </main>
 
       {propertyDialog && (
         <Dialog
@@ -605,7 +605,7 @@ function Dashboard({ user, onLogout }) {
       )}
 
       <Toasts items={toasts} />
-    </main>
+    </div>
   )
 }
 

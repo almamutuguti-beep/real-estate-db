@@ -15,7 +15,7 @@ app.use('/api/properties', require('./routes/properties'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/applications', require('./routes/applications'));
-app.use('/api/tenants', require('./routes/tenants'));
+app.use('/api/tenants', require('./routes/tenant'));
 app.use('/api/leases', require('./routes/leases'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/tenant', require('./routes/tenant'));
