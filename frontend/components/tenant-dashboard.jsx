@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Building2, Home, ShieldCheck } from 'lucide-react'
+import { Building2, Home } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 import { formatDate, money } from '../lib/format'
 import SettingsPanel from './settings-panel'
+import { Skeleton, Toasts, useToasts } from './ui'
 import { ListingGrid } from './public-home'
 import './public-home.css'
 
@@ -35,25 +36,20 @@ function Panel({ title, text, empty, items, render }) {
 
 export default function TenantDashboard({ user, onLogout }) {
   const [tab, setTab] = useState('Browse')
-  const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [toasts, notify] = useToasts()
   const [data, setData] = useState({ homes: [], applications: [], leases: [], payments: [] })
 
   const logoutRef = useRef(onLogout)
   logoutRef.current = onLogout
-
-  const notify = useCallback((message) => {
-    setNotice(message)
-    window.setTimeout(() => setNotice(''), 3200)
-  }, [])
 
   const handleError = useCallback((err) => {
     if (err && err.status === 401) {
       logoutRef.current()
       return
     }
-    notify((err && err.message) || 'Something went wrong')
+    notify((err && err.message) || 'Something went wrong', 'error')
   }, [notify])
 
   const load = useCallback(async () => {
@@ -132,8 +128,8 @@ export default function TenantDashboard({ user, onLogout }) {
       </nav>
 
       <main className="home-section">
-        {notice && <div className="toast"><ShieldCheck size={17} />{notice}</div>}
-        {loading && <p className="home-empty">Loading your data…</p>}
+        <Toasts items={toasts} />
+        {loading && <Skeleton rows={4} />}
 
         {tab === 'Browse' && (
           <>
