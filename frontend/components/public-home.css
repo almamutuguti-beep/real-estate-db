@@ -436,6 +436,24 @@
   margin-bottom: 20px;
 }
 
+.home-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.owner-section-row {
+  margin-bottom: 18px;
+}
+
+.owner-block {
+  margin-bottom: 40px;
+}
+
+.home-shell .home-section > .home-section-head {
+  margin-bottom: 28px;
+}
+
 @keyframes home-zoom {
   from { transform: scale(1.04); }
   to { transform: scale(1.14); }

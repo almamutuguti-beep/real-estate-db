@@ -1,91 +1,23 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireOwner } = require('../middleware/auth');
 
 const router = express.Router();
+router.use(requireAuth, requireOwner);
 
-async function requireTenant(req, res, next) {
-  if (req.user.role !== 'Tenant') {
-    return res.status(403).json({ error: 'Tenants only' });
-  }
-  try {
-    const [rows] = await db.query('SELECT tenant_id FROM tenant WHERE user_id = ?', [req.user.userId]);
-    if (!rows[0]) return res.status(403).json({ error: 'No tenant profile for this account' });
-    req.tenantId = rows[0].tenant_id;
-    next();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-}
-
-router.use(requireAuth, requireTenant);
-
-const APPLICATION_SELECT = `SELECT ra.rental_application_id, ra.application_date, ra.status,
-       p.property_id, p.address, p.property_type, p.monthly_rent
-FROM rental_application ra
-JOIN property p ON p.property_id = ra.property_id`;
-
-// GET /api/tenant/applications
-router.get('/applications', async (req, res) => {
+// GET /api/tenants  (tenants on this owner's active leases)
+router.get('/', async (req, res) => {
   try {
     const [rows] = await db.query(
-      `${APPLICATION_SELECT} WHERE ra.tenant_id = ? ORDER BY ra.application_date DESC, ra.rental_application_id DESC`,
-      [req.tenantId]
-    );
-    res.json({ data: rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// POST /api/tenant/applications   body: { "propertyId": 3 }
-router.post('/applications', async (req, res) => {
-  const propertyId = Number((req.body || {}).propertyId);
-  if (!Number.isInteger(propertyId) || propertyId <= 0) {
-    return res.status(400).json({ error: 'A valid propertyId is required', code: 'INVALID_PROPERTY' });
-  }
-  try {
-    const [props] = await db.query(
-      "SELECT property_id FROM property WHERE property_id = ? AND status = 'Available'",
-      [propertyId]
-    );
-    if (!props[0]) {
-      return res.status(404).json({ error: 'That property is not available', code: 'NOT_AVAILABLE' });
-    }
-    const [[existing]] = await db.query(
-      "SELECT COUNT(*) AS n FROM rental_application WHERE tenant_id = ? AND property_id = ? AND status IN ('Pending','Approved')",
-      [req.tenantId, propertyId]
-    );
-    if (existing.n > 0) {
-      return res.status(409).json({ error: 'You already applied for this property', code: 'ALREADY_APPLIED' });
-    }
-    const [result] = await db.query(
-      'INSERT INTO rental_application (tenant_id, property_id, application_date) VALUES (?, ?, CURDATE())',
-      [req.tenantId, propertyId]
-    );
-    const [rows] = await db.query(`${APPLICATION_SELECT} WHERE ra.rental_application_id = ?`, [result.insertId]);
-    res.status(201).json({ data: rows[0] });
-  } catch (err) {
-    if (err.sqlState === '45000') {
-      return res.status(409).json({ error: err.sqlMessage, code: 'BUSINESS_RULE' });
-    }
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// GET /api/tenant/leases
-router.get('/leases', async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT l.lease_id, l.start_date, l.end_date, l.monthly_rent, l.status, p.property_id, p.address
+      `SELECT t.tenant_id, t.full_name, t.phone, t.email,
+              l.lease_id, l.start_date, l.end_date, l.monthly_rent, l.status AS lease_status,
+              p.property_id, p.address
        FROM lease_agreement l
        JOIN property p ON p.property_id = l.property_id
-       WHERE l.tenant_id = ?
-       ORDER BY l.start_date DESC`,
-      [req.tenantId]
+       JOIN tenant t ON t.tenant_id = l.tenant_id
+       WHERE p.property_owner_id = ? AND l.status = 'Active'
+       ORDER BY t.full_name, l.lease_id`,
+      [req.ownerId]
     );
     res.json({ data: rows });
   } catch (err) {
@@ -94,19 +26,56 @@ router.get('/leases', async (req, res) => {
   }
 });
 
-// GET /api/tenant/payments
-router.get('/payments', async (req, res) => {
+// GET /api/tenants/:tenantId
+router.get('/:tenantId', async (req, res) => {
+  const id = Number(req.params.tenantId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid tenant id' });
+  }
+
   try {
-    const [rows] = await db.query(
-      `SELECT pm.payment_id, pm.lease_id, pm.amount, pm.payment_method, pm.status, pm.payment_date, p.address
+    const [leases] = await db.query(
+      `SELECT t.tenant_id, t.full_name, t.phone, t.email,
+              l.lease_id, l.start_date, l.end_date, l.monthly_rent, l.status AS lease_status,
+              p.property_id, p.address
+       FROM lease_agreement l
+       JOIN property p ON p.property_id = l.property_id
+       JOIN tenant t ON t.tenant_id = l.tenant_id
+       WHERE p.property_owner_id = ? AND l.tenant_id = ? AND l.status = 'Active'
+       ORDER BY l.lease_id`,
+      [req.ownerId, id]
+    );
+    if (!leases[0]) return res.status(404).json({ error: 'Tenant not found' });
+
+    const [payments] = await db.query(
+      `SELECT pm.payment_id, pm.lease_id, pm.amount, pm.payment_method, pm.status, pm.payment_date
        FROM payment pm
        JOIN lease_agreement l ON l.lease_id = pm.lease_id
        JOIN property p ON p.property_id = l.property_id
-       WHERE pm.tenant_id = ?
+       WHERE p.property_owner_id = ? AND pm.tenant_id = ?
        ORDER BY pm.payment_date DESC`,
-      [req.tenantId]
+      [req.ownerId, id]
     );
-    res.json({ data: rows });
+
+    const first = leases[0];
+    res.json({
+      data: {
+        tenant_id: first.tenant_id,
+        full_name: first.full_name,
+        phone: first.phone,
+        email: first.email,
+        leases: leases.map((l) => ({
+          lease_id: l.lease_id,
+          property_id: l.property_id,
+          address: l.address,
+          start_date: l.start_date,
+          end_date: l.end_date,
+          monthly_rent: l.monthly_rent,
+          status: l.lease_status,
+        })),
+        payments,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
