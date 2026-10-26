@@ -38,6 +38,16 @@ async function getProfile(account) {
     const row = rows[0];
     return row ? { fullName: row.full_name, phone: row.phone, email: row.email } : {};
   }
+  if (account.role === 'Agent') {
+    const [rows] = await db.query('SELECT full_name, phone, email FROM agent WHERE user_id = ?', [account.user_id]);
+    const row = rows[0];
+    return row ? { fullName: row.full_name, phone: row.phone, email: row.email } : {};
+  }
+  if (account.role === 'Worker') {
+    const [rows] = await db.query('SELECT full_name, phone, specialty FROM maintenance_worker WHERE user_id = ?', [account.user_id]);
+    const row = rows[0];
+    return row ? { fullName: row.full_name, phone: row.phone, specialty: row.specialty } : {};
+  }
   return {};
 }
 

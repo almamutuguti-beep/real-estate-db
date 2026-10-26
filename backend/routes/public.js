@@ -24,4 +24,28 @@ router.get('/properties', async (req, res) => {
   }
 });
 
+// POST /api/public/enquiries { propertyId, name, email, message }  (no login needed)
+router.post('/enquiries', async (req, res) => {
+  const body = req.body || {};
+  const propertyId = Number(body.propertyId);
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const message = typeof body.message === 'string' ? body.message.trim() : '';
+  if (!Number.isInteger(propertyId) || propertyId <= 0) return res.status(400).json({ error: 'Invalid property id' });
+  if (!name || name.length > 100) return res.status(400).json({ error: 'Enter your name' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 100) return res.status(400).json({ error: 'Enter a valid email address' });
+  if (message.length < 5 || message.length > 2000) return res.status(400).json({ error: 'Write a short message (5 to 2000 characters)' });
+
+  try {
+    const [result] = await db.query(
+      'INSERT INTO property_enquiry (property_id, enquirer_name, enquirer_email, message) VALUES (?, ?, ?, ?)',
+      [propertyId, name, email, message]
+    );
+    res.status(201).json({ data: { enquiry_id: result.insertId, status: 'New' } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
