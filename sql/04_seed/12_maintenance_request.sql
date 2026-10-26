@@ -7,4 +7,3 @@ INSERT INTO maintenance_request
   (3,3,1, 'Blocked bathroom drain', 'Assigned', NULL),
   (4,4,2, 'Faulty socket in living room', 'In Progress', NULL),
   (5,5,3, 'Front door lock needed replacing', 'Complete', '2026-10-10 15:35:00');
-  
