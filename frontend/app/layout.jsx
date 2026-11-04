@@ -1,3 +1,4 @@
+import { SiteFooter } from '../components/site-footer';
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
@@ -13,5 +14,5 @@ export const viewport = {
 }
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body>{children}{process.env.NODE_ENV === 'production' && <Analytics />}</body></html>
+  return <html lang="en"><body>{children}<SiteFooter />{process.env.NODE_ENV === 'production' && <Analytics />}</body></html>
 }
