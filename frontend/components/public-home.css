@@ -119,7 +119,7 @@
 .home-photo {
   position: absolute;
   inset: 0;
-  background-image: url('/landing.jpg');
+  background-image: url('/landing-page.png');
   background-size: cover;
   background-position: 50% 32%;
   animation: home-zoom 30s ease-in-out infinite alternate;

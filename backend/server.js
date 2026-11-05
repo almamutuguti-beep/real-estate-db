@@ -15,10 +15,11 @@ app.use('/api/properties', require('./routes/properties'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/applications', require('./routes/applications'));
-app.use('/api/tenants', require('./routes/tenant'));
+app.use('/api/tenants', require('./routes/tenant'));          // owner view of tenants
 app.use('/api/leases', require('./routes/leases'));
 app.use('/api/reports', require('./routes/reports'));
-app.use('/api/tenant', require('./routes/tenant'));
+app.use('/api/tenant', require('./routes/tenantPortal'));     // tenant's own actions
+app.use('/api/admin', require('./routes/admin'));                 // admin only
 
 app.get('/api/health', async (req, res) => {
   try {

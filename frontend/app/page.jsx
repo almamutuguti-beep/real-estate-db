@@ -6,6 +6,7 @@ import { formatDate, initialsOf, money } from '../lib/format'
 import AuthScreen from '../components/auth-screen'
 import PublicHome from '../components/public-home'
 import TenantDashboard from '../components/tenant-dashboard'
+import AdminDashboard from '../components/admin-dashboard'
 import SettingsPanel from '../components/settings-panel'
 import { ConfirmDialog, Dialog, EmptyState, Skeleton, Toasts, useToasts } from '../components/ui'
 import { LeaseForm, PropertyForm } from '../components/forms'
@@ -147,6 +148,24 @@ function PaymentList({ payments }) {
   )
 }
 
+function PendingPaymentList({ payments, busy, onConfirm, onReject }) {
+  return (
+    <div className="application-list">
+      {payments.map((payment) => (
+        <div className="application-row" key={payment.payment_id}>
+          <div className="avatar avatar-soft">{initialsOf(payment.tenant_name)}</div>
+          <div className="application-info"><strong>{payment.tenant_name}</strong><span>{payment.address} · {payment.payment_method} · Ref {payment.reference}</span></div>
+          <span className="application-date">{money(payment.amount)} on {formatDate(payment.payment_date)}</span>
+          <span className="ui-actions">
+            <button className="ui-btn ui-btn-sm ui-btn-ok" disabled={busy} onClick={() => onConfirm(payment)}>Confirm received</button>
+            <button className="ui-btn ui-btn-sm ui-btn-outline-danger" disabled={busy} onClick={() => onReject(payment)}>Reject</button>
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ReportPanel({ report }) {
   if (!report) return <Skeleton rows={4} />
   const s = report.summary
@@ -177,12 +196,41 @@ function ReportPanel({ report }) {
   )
 }
 
+function AdminStatus() {
+  const [status, setStatus] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      try {
+        const result = await apiFetch('/api/dashboard/admin-status')
+        if (!cancelled) setStatus(result.data)
+      } catch {
+        if (!cancelled) setStatus(null)
+      }
+    }
+    check()
+    const id = setInterval(check, 60000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [])
+  if (!status) return null
+  const ok = status.exists && status.active
+  const label = ok ? 'System admin: active' : status.exists ? 'System admin: deactivated' : 'No system admin set up'
+  return (
+    <span className="ui-chip" style={ok ? undefined : { background: '#fff0d9', color: '#bb6a00' }} title="The system administrator oversees all accounts">
+      {label}
+    </span>
+  )
+}
+
 function Dashboard({ user, onLogout }) {
   const [active, setActive] = useState('Overview')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [data, setData] = useState({ summary: null, properties: [], applications: [], tenants: [], payments: [], leases: [], report: null })
+  const [data, setData] = useState({ summary: null, properties: [], applications: [], tenants: [], payments: [], pendingPayments: [], leases: [], report: null })
   const [propertyDialog, setPropertyDialog] = useState(null)
   const [leaseDialog, setLeaseDialog] = useState(null)
   const [dialogSaving, setDialogSaving] = useState(false)
@@ -205,16 +253,17 @@ function Dashboard({ user, onLogout }) {
 
   const load = useCallback(async () => {
     try {
-      const [summary, properties, applications, tenants, payments, leases, report] = await Promise.all([
+      const [summary, properties, applications, tenants, payments, pendingPayments, leases, report] = await Promise.all([
         apiFetch('/api/dashboard/summary'),
         apiFetch('/api/properties'),
         apiFetch('/api/applications'),
         apiFetch('/api/tenants'),
         apiFetch('/api/payments'),
+        apiFetch('/api/payments/pending'),
         apiFetch('/api/leases'),
         apiFetch('/api/reports/owner'),
       ])
-      setData({ summary, properties: properties.data, applications: applications.data, tenants: tenants.data, payments: payments.data, leases: leases.data, report: report.data })
+      setData({ summary, properties: properties.data, applications: applications.data, tenants: tenants.data, payments: payments.data, pendingPayments: pendingPayments.data, leases: leases.data, report: report.data })
       setLoadError('')
     } catch (err) {
       if (err.status === 401) logoutRef.current()
@@ -243,6 +292,7 @@ function Dashboard({ user, onLogout }) {
   const summary = data.summary || {}
   const firstLoad = loading && !data.summary
   const pendingCount = data.applications.filter((application) => application.status === 'Pending').length
+  const pendingPayCount = data.pendingPayments.length
   const leasedIds = useMemo(() => new Set(data.leases.map((lease) => lease.rental_application_id)), [data.leases])
 
   const filteredProperties = useMemo(() => {
@@ -425,6 +475,28 @@ function Dashboard({ user, onLogout }) {
     })
   }
 
+  function confirmPayment(payment) {
+    act(async () => {
+      await apiFetch(`/api/payments/${payment.payment_id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Complete' }) })
+      notify(`Payment from ${payment.tenant_name} confirmed`)
+      await load()
+    })
+  }
+
+  function askRejectPayment(payment) {
+    setConfirm({
+      title: 'Reject this payment?',
+      message: `${money(payment.amount)} from ${payment.tenant_name} will be marked as failed and will not count as income.`,
+      confirmLabel: 'Reject payment',
+      danger: true,
+      action: async () => {
+        await apiFetch(`/api/payments/${payment.payment_id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Failed' }) })
+        notify('Payment rejected')
+        await load()
+      },
+    })
+  }
+
   async function runConfirm() {
     if (!confirm) return
     setConfirmBusy(true)
@@ -495,7 +567,7 @@ function Dashboard({ user, onLogout }) {
     ['Applications', pendingCount ? `Applications (${pendingCount} pending)` : 'Applications'],
     ['Tenants', 'Tenants'],
     ['Leases', 'Leases'],
-    ['Payments', 'Payments'],
+    ['Payments', pendingPayCount ? `Payments (${pendingPayCount} to confirm)` : 'Payments'],
     ['Reports', 'Reports'],
     ['Settings', 'Settings'],
   ]
@@ -505,6 +577,7 @@ function Dashboard({ user, onLogout }) {
       <header className="home-header home-header-static">
         <div className="home-brand"><span className="home-mark"><Home size={16} /></span> Velora</div>
         <div className="home-actions">
+          <AdminStatus />
           <span className="home-user">Signed in as {user.username} (owner)</span>
           <button type="button" className="home-btn" onClick={onLogout}>Sign out</button>
         </div>
@@ -556,13 +629,21 @@ function Dashboard({ user, onLogout }) {
                 </section>
               )}
               {active === 'Payments' && (
-                <div className="lower-grid">
-                  <section className="panel-card">
-                    <div className="panel-heading"><div><h2>Payments</h2><p>Completed rent payments for your properties.</p></div></div>
-                    <PaymentList payments={data.payments} />
-                  </section>
-                  {incomePanel}
-                </div>
+                <>
+                  {data.pendingPayments.length > 0 && (
+                    <section className="panel-card" style={{ marginBottom: 16 }}>
+                      <div className="panel-heading"><div><h2>Awaiting your confirmation</h2><p>Tenants have sent these payments. Confirm once the money reaches you.</p></div></div>
+                      <PendingPaymentList payments={data.pendingPayments} busy={busy} onConfirm={confirmPayment} onReject={askRejectPayment} />
+                    </section>
+                  )}
+                  <div className="lower-grid">
+                    <section className="panel-card">
+                      <div className="panel-heading"><div><h2>Payments</h2><p>Completed rent payments for your properties.</p></div></div>
+                      <PaymentList payments={data.payments} />
+                    </section>
+                    {incomePanel}
+                  </div>
+                </>
               )}
               {active === 'Reports' && <ReportPanel report={data.report} />}
               {active === 'Settings' && <SettingsPanel onUnauthorized={onLogout} />}
@@ -636,6 +717,7 @@ export default function Page() {
   }
   if (user && user.role === 'Owner') return <Dashboard user={user} onLogout={handleLogout} />
   if (user && user.role === 'Tenant') return <TenantDashboard user={user} onLogout={handleLogout} />
+  if (user && user.role === 'Admin') return <AdminDashboard user={user} onLogout={handleLogout} />
   if (!user && authMode) {
     return (
       <AuthScreen

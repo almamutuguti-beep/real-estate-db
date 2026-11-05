@@ -99,4 +99,63 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+// GET /api/payments/pending  -> payments tenants have submitted and the owner has not confirmed
+router.get('/pending', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT pm.payment_id, pm.lease_id, p.property_id, p.address,
+              t.full_name AS tenant_name, pm.amount, pm.payment_method, pm.payment_date
+       FROM payment pm
+       JOIN lease_agreement l ON l.lease_id = pm.lease_id
+       JOIN property p ON p.property_id = l.property_id
+       JOIN tenant t ON t.tenant_id = pm.tenant_id
+       WHERE p.property_owner_id = ? AND pm.status = 'Pending'
+       ORDER BY pm.payment_date DESC`,
+      [req.ownerId]
+    );
+    res.json({ data: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /api/payments/:paymentId   body: { status: 'Complete' | 'Failed' }
+// [Guessing] 'Failed' is a valid payment.status value in your schema.
+router.patch('/:paymentId', async (req, res) => {
+  const id = Number(req.params.paymentId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid payment id' });
+  }
+  const status = (req.body || {}).status;
+  if (!['Complete', 'Failed'].includes(status)) {
+    return res.status(400).json({ error: 'status must be Complete or Failed', code: 'INVALID_STATUS' });
+  }
+
+  try {
+    const [owned] = await db.query(
+      `SELECT pm.payment_id, pm.status
+       FROM payment pm
+       JOIN lease_agreement l ON l.lease_id = pm.lease_id
+       JOIN property p ON p.property_id = l.property_id
+       WHERE pm.payment_id = ? AND p.property_owner_id = ?`,
+      [id, req.ownerId]
+    );
+    if (!owned[0]) return res.status(404).json({ error: 'Payment not found' });
+    if (owned[0].status !== 'Pending') {
+      return res.status(409).json({ error: 'Only a pending payment can be changed', code: 'NOT_PENDING' });
+    }
+
+    await db.query("UPDATE payment SET status = ? WHERE payment_id = ? AND status = 'Pending'", [status, id]);
+    res.json({ data: { payment_id: id, status } });
+  } catch (err) {
+    if (err.sqlState === '45000') {
+      // e.g. a database rule requiring a gateway confirmation before a payment can be Complete
+      return res.status(409).json({ error: err.sqlMessage, code: 'BUSINESS_RULE' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

@@ -5,7 +5,8 @@ import { Building2, Home } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 import { formatDate, money } from '../lib/format'
 import SettingsPanel from './settings-panel'
-import { Skeleton, Toasts, useToasts } from './ui'
+import { Dialog, Skeleton, Toasts, useToasts } from './ui'
+import PayRentForm from './payment-form'
 import { ListingGrid } from './public-home'
 import './public-home.css'
 
@@ -39,6 +40,10 @@ export default function TenantDashboard({ user, onLogout }) {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [toasts, notify] = useToasts()
+  const [loadWarning, setLoadWarning] = useState('')
+  const [payOpen, setPayOpen] = useState(false)
+  const [paySaving, setPaySaving] = useState(false)
+  const [payError, setPayError] = useState('')
   const [data, setData] = useState({ homes: [], applications: [], leases: [], payments: [] })
 
   const logoutRef = useRef(onLogout)
@@ -53,20 +58,28 @@ export default function TenantDashboard({ user, onLogout }) {
   }, [notify])
 
   const load = useCallback(async () => {
-    try {
-      const [homes, applications, leases, payments] = await Promise.all([
-        apiFetch('/api/public/properties'),
-        apiFetch('/api/tenant/applications'),
-        apiFetch('/api/tenant/leases'),
-        apiFetch('/api/tenant/payments'),
-      ])
-      setData({ homes: homes.data, applications: applications.data, leases: leases.data, payments: payments.data })
-    } catch (err) {
-      handleError(err)
-    } finally {
-      setLoading(false)
+    const results = await Promise.allSettled([
+      apiFetch('/api/public/properties'),
+      apiFetch('/api/tenant/applications'),
+      apiFetch('/api/tenant/leases'),
+      apiFetch('/api/tenant/payments'),
+    ])
+    const expired = results.find((r) => r.status === 'rejected' && r.reason && r.reason.status === 401)
+    if (expired) {
+      logoutRef.current()
+      return
     }
-  }, [handleError])
+    const [homes, applications, leases, payments] = results
+    const rows = (result, previous) => (result.status === 'fulfilled' ? result.value.data : previous)
+    setData((current) => ({
+      homes: rows(homes, current.homes),
+      applications: rows(applications, current.applications),
+      leases: rows(leases, current.leases),
+      payments: rows(payments, current.payments),
+    }))
+    setLoadWarning(results.some((r) => r.status === 'rejected') ? 'Some of your information could not be loaded. We will keep trying.' : '')
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
     load()
@@ -105,6 +118,32 @@ export default function TenantDashboard({ user, onLogout }) {
     }
   }
 
+  const activeLeases = data.leases.filter((lease) => lease.status === 'Active')
+
+  async function submitPayment(values) {
+    setPaySaving(true)
+    setPayError('')
+    try {
+      await apiFetch('/api/tenant/payments', {
+        method: 'POST',
+        body: JSON.stringify({
+          leaseId: Number(values.leaseId),
+          amount: Number(values.amount),
+          paymentMethod: values.paymentMethod,
+          reference: values.reference.trim(),
+        }),
+      })
+      setPayOpen(false)
+      notify('Payment submitted. The owner will confirm it.')
+      await load()
+    } catch (err) {
+      if (err.status === 401) handleError(err)
+      else setPayError(err.message)
+    } finally {
+      setPaySaving(false)
+    }
+  }
+
   const tabs = [
     ['Browse', `Browse homes (${data.homes.length})`],
     ['Applications', pendingCount ? `My applications (${pendingCount} pending)` : 'My applications'],
@@ -129,6 +168,7 @@ export default function TenantDashboard({ user, onLogout }) {
 
       <main className="home-section">
         <Toasts items={toasts} />
+        {loadWarning && <p className="ui-banner error" role="alert">{loadWarning}</p>}
         {loading && <Skeleton rows={4} />}
 
         {tab === 'Browse' && (
@@ -154,11 +194,22 @@ export default function TenantDashboard({ user, onLogout }) {
         )}
 
         {tab === 'Payments' && (
+          <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+            <button type="button" className="home-btn home-btn-primary" onClick={() => { setPayError(''); setPayOpen(true) }}>Pay rent</button>
+          </div>
           <Panel title="Payments" text="Your rent payment history." empty="No payments recorded yet." items={data.payments}
             render={(p) => <Row key={p.payment_id} title={p.address} subtitle={p.payment_method} meta={`${money(p.amount)} on ${formatDate(p.payment_date)}`} pill={p.status} />} />
+          </>
         )}
 
         {tab === 'Settings' && <SettingsPanel onUnauthorized={onLogout} />}
+
+        {payOpen && (
+          <Dialog title="Pay rent" subtitle="Send a payment for the owner to confirm." busy={paySaving} onClose={() => setPayOpen(false)}>
+            <PayRentForm leases={activeLeases} saving={paySaving} serverError={payError} onSubmit={submitPayment} onCancel={() => setPayOpen(false)} />
+          </Dialog>
+        )}
       </main>
     </div>
   )

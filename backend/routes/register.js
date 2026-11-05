@@ -26,6 +26,9 @@ router.post('/register', async (req, res) => {
   if (!USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Username must be 3 to 50 characters: letters, numbers, dot, dash or underscore', code: 'INVALID_USERNAME' });
   }
+  if (username.toLowerCase() === 'admin') {
+    return res.status(400).json({ error: 'That username is reserved', code: 'USERNAME_RESERVED' });
+  }
   if (password.length < 8 || Buffer.byteLength(password) > 72) {
     return res.status(400).json({ error: 'Password must be at least 8 characters', code: 'INVALID_PASSWORD' });
   }

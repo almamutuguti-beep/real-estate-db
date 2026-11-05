@@ -79,4 +79,19 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+// GET /api/dashboard/admin-status
+// Lets an owner see that a system administrator exists. It deliberately returns no username
+// or other account details, because the username is half of the admin's login.
+router.get('/admin-status', async (req, res) => {
+  try {
+    const [[row]] = await db.query(
+      "SELECT COUNT(*) AS total, COALESCE(SUM(is_active), 0) AS active FROM user_account WHERE role = 'Admin'"
+    );
+    res.json({ data: { exists: Number(row.total) > 0, active: Number(row.active) > 0 } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
